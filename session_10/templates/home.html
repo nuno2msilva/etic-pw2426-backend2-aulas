@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Comments</h2>
+
+{% if user.is_authenticated %}
+<form method="post" action="/comment/">
+  {% csrf_token %}
+  {{ form.comment }}
+  {% if form.comment.errors %}
+    <ul class="errors">{% for e in form.comment.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+  <button type="submit">Post comment</button>
+</form>
+{% else %}
+  <p><a href="/login/">Login</a> to post a comment.</p>
+{% endif %}
+
+<hr>
+{% for c in comments %}
+  <div class="comment">
+    <p>{{ c.content }}</p>
+    <small>{{ c.user.username }} &mdash; {{ c.created_at|date:"Y-m-d H:i" }}</small>
+  </div>
+{% empty %}
+  <p>No comments yet.</p>
+{% endfor %}
+{% endblock %}

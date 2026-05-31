@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import strawberry
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from graphql import GraphQLError
 from strawberry.asgi import GraphQL
 
@@ -85,6 +88,13 @@ schema = strawberry.Schema(query=Query, mutation=Mutation)
 app = FastAPI()
 app.add_route("/graphql", GraphQL(schema))   # GraphiQL UI at /graphql
 
+_INDEX_HTML = (Path(__file__).parent / "templates" / "index.html").read_text()
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return HTMLResponse(_INDEX_HTML)
+
 
 # ---------------------------------------------------------------------------
 # Standalone demo — execute queries directly against the schema
@@ -116,7 +126,8 @@ def main():
     print("  errors:", [e.message for e in result.errors])
 
     print("\nFull GraphQL server: uv run uvicorn main:app --reload")
-    print("  then open http://localhost:8000/graphql for GraphiQL")
+    print("  http://localhost:8000/        → interactive demo page")
+    print("  http://localhost:8000/graphql → GraphiQL explorer")
 
 
 if __name__ == "__main__":

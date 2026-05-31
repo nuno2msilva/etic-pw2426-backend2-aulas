@@ -1,13 +1,18 @@
-# Same standalone approach as session 14 — real CrewAI: pip install crewai
-# Exercise uses a live weather API (wttr.in — no API key required).
+# Session 15: Advanced AI Agents
+# Standalone classes illustrate state, weather, and routing — no packages needed.
+# Interactive mode is a generative chatbot with memory and a weather tool.
+
 import json
+import re
+import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # ---------------------------------------------------------------------------
-# Tutorial: StatefulAgent (mirrors the README example exactly)
+# Tutorial: StatefulAgent
 # ---------------------------------------------------------------------------
+
 class StatefulAgent:
     """Keeps a history of all queries and can replay them on demand."""
 
@@ -23,83 +28,171 @@ class StatefulAgent:
 
 
 # ---------------------------------------------------------------------------
-# Problem: agent that fetches real-time weather from wttr.in (no key needed)
+# Shared weather helper
 # ---------------------------------------------------------------------------
+
+def fetch_weather(city: str) -> str:
+    url = f"https://wttr.in/{urllib.parse.quote(city)}?format=j1"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read())
+        temp_c = data["current_condition"][0]["temp_C"]
+        feels = data["current_condition"][0]["FeelsLikeC"]
+        desc  = data["current_condition"][0]["weatherDesc"][0]["value"]
+        return f"{city}: {temp_c}°C (feels like {feels}°C), {desc}"
+    except Exception as exc:
+        return f"Could not fetch weather for {city}: {exc}"
+
+
+# ---------------------------------------------------------------------------
+# Problem: WeatherAgent
+# ---------------------------------------------------------------------------
+
 class WeatherAgent(StatefulAgent):
-    """Fetches the current temperature for a city via wttr.in."""
-
-    _API = "https://wttr.in/{city}?format=j1"
-
-    def _fetch_temperature(self, city: str) -> str:
-        url = self._API.format(city=urllib.parse.quote(city))
-        try:
-            with urllib.request.urlopen(url, timeout=5) as resp:
-                data = json.loads(resp.read())
-            temp_c = data["current_condition"][0]["temp_C"]
-            return f"Current temperature in {city}: {temp_c}°C"
-        except Exception as exc:
-            return f"Could not fetch weather for {city}: {exc}"
-
     def respond(self, query: str) -> str:
         self.history.append(query)
         if query.lower().startswith("weather "):
-            city = query[8:].strip()
-            return self._fetch_temperature(city)
+            return fetch_weather(query[8:].strip())
         return super().respond(query)
 
 
 # ---------------------------------------------------------------------------
-# Challenge: agent with structured query parsing + external data enrichment
+# Challenge: SmartAgent — routes by prefix
 # ---------------------------------------------------------------------------
-class SmartAgent(WeatherAgent):
-    """
-    Parses structured queries of the form:
-        weather <city>          → temperature
-        time <timezone>         → current UTC offset (stdlib, no network)
-        history                 → replay all queries
-        <anything else>         → default echo
-    """
 
+class SmartAgent(WeatherAgent):
     def respond(self, query: str) -> str:
         self.history.append(query)
         lower = query.lower()
-
         if lower.startswith("weather "):
-            city = query[8:].strip()
-            return self._fetch_temperature(city)
-
+            return fetch_weather(query[8:].strip())
         if lower.startswith("time"):
-            now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-            return f"Current UTC time: {now}"
-
+            return f"Current UTC time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}"
         if lower == "history":
             return f"Queries so far: {', '.join(self.history)}"
-
         return f"[{self.name}] I don't know how to handle: '{query}'"
 
 
-# urllib.parse is used inside WeatherAgent but imported at module level
-import urllib.parse   # noqa: E402  (intentionally placed after class def for clarity)
+# ---------------------------------------------------------------------------
+# Generative chatbot config
+# ---------------------------------------------------------------------------
 
+_MODEL = "qwen2.5:1.5b"
+_SYSTEM = (
+    "You are SmartBot, a helpful and concise assistant. "
+    "You have access to real-time weather data and the current time — "
+    "when relevant information is provided in the conversation, use it naturally in your reply. "
+    "Keep answers brief."
+)
+
+
+def _ollama_running() -> bool:
+    try:
+        urllib.request.urlopen("http://localhost:11434", timeout=2)
+        return True
+    except Exception:
+        return False
+
+
+def _extract_city(text: str) -> str | None:
+    """Pull a city name from a weather question, e.g. 'weather in Lisbon' → 'Lisbon'."""
+    m = re.search(r"weather\s+(?:in\s+|for\s+)?([a-zA-Z\s\-]+)", text, re.IGNORECASE)
+    if m:
+        return m.group(1).strip().title()
+    return None
+
+
+def _tool_context(query: str) -> str:
+    """Return pre-fetched data strings to inject before the user's message."""
+    parts: list[str] = []
+    city = _extract_city(query)
+    if city:
+        parts.append(f"[weather data] {fetch_weather(city)}")
+    if re.search(r"\btime\b", query, re.IGNORECASE):
+        parts.append(f"[current time] {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Interactive REPL
+# ---------------------------------------------------------------------------
+
+def interactive():
+    print("\n" + "─" * 56)
+
+    try:
+        import ollama
+        has_ollama = True
+    except ImportError:
+        has_ollama = False
+
+    use_llm = has_ollama and _ollama_running()
+
+    if use_llm:
+        print(f"SmartBot — {_MODEL} via Ollama  (streaming, memory + weather tool)")
+        print("Try: 'weather Lisbon', 'what time is it now', or anything.")
+    else:
+        if not has_ollama:
+            print("SmartBot — standalone  (run 'uv sync' to install ollama)")
+        else:
+            print("SmartBot — standalone  (Ollama not running at :11434)")
+        print("Try: 'weather <city>', 'time', 'history'")
+        print("See root README for Ollama setup instructions.")
+
+    print("Type 'quit' to exit.\n")
+
+    messages = [{"role": "system", "content": _SYSTEM}]
+    standalone = SmartAgent("SmartBot")
+
+    while True:
+        try:
+            query = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not query:
+            continue
+        if query.lower() in ("quit", "exit", "q"):
+            print("Goodbye!")
+            break
+
+        if use_llm:
+            ctx = _tool_context(query)
+            # Inject tool data as context before the user message so the model sees it
+            user_content = f"{ctx}\n\nUser: {query}" if ctx else query
+            messages.append({"role": "user", "content": user_content})
+            print("Bot: ", end="", flush=True)
+            reply_parts: list[str] = []
+            for chunk in ollama.chat(model=_MODEL, messages=messages, stream=True):
+                piece = chunk["message"]["content"]
+                print(piece, end="", flush=True)
+                reply_parts.append(piece)
+            print("\n")
+            messages.append({"role": "assistant", "content": "".join(reply_parts)})
+        else:
+            print(f"Bot: {standalone.respond(query)}\n")
+
+
+# ---------------------------------------------------------------------------
+# Demo
+# ---------------------------------------------------------------------------
 
 def main():
-    # Tutorial: stateful echo agent
     print("Tutorial — StatefulAgent:")
-    agent = StatefulAgent("StatefulAgent")
-    print(" ", agent.respond("query"))
-    print(" ", agent.respond("history"))
+    a = StatefulAgent("StatefulAgent")
+    print(" ", a.respond("query"))
+    print(" ", a.respond("history"))
 
-    # Problem: weather agent
     print("\nProblem — WeatherAgent:")
-    weather_bot = WeatherAgent("WeatherBot")
-    print(" ", weather_bot.respond("weather Lisbon"))
+    w = WeatherAgent("WeatherBot")
+    print(" ", w.respond("weather Lisbon"))
 
-    # Challenge: smart structured-query agent
     print("\nChallenge — SmartAgent:")
-    smart = SmartAgent("SmartBot")
-    for q in ["weather Porto", "time", "weather Madrid", "history"]:
-        print(f"  Q: {q!r}")
-        print(f"  A: {smart.respond(q)}")
+    s = SmartAgent("SmartBot")
+    for q in ["weather Porto", "time", "history"]:
+        print(f"  Q: {q!r}  →  {s.respond(q)}")
+
+    interactive()
 
 
 if __name__ == "__main__":

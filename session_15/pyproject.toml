@@ -1,9 +1,9 @@
 [project]
 name = "session-15"
 version = "0.1.0"
-description = "Add your description here"
+description = "Advanced AI Agents — stateful chatbot with tools"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
-    "crewai>=0.100",
+    "ollama>=0.4",
 ]

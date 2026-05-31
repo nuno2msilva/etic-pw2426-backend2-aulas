@@ -11,6 +11,102 @@ make clean-session_00 # one session
 
 ---
 
+## Usage Guide
+
+### Running sessions
+
+| Session type | Command |
+|---|---|
+| Standalone scripts (01–04, 06–07, 12, 14–15) | `cd session_NN && uv run python main.py` |
+| FastAPI server (05, 11, 13) | `cd session_NN && uv sync && uv run uvicorn main:app --reload` |
+| Django server (09, 10) | `cd session_NN && uv sync && uv run python manage.py migrate && uv run python manage.py runserver` |
+| pytest suite (08, 09) | `cd session_NN && uv sync && uv run pytest -v` |
+
+Sessions that need packages (FastAPI, Django, pytest, loguru…) print a clear error if you forget `uv sync`. Sessions 01–04 and 06 need no packages at all.
+
+### Web API endpoints
+
+**Session 05 — Async / FastAPI** (`uv run uvicorn main:app --reload`)
+```
+GET /async-data      — simulated async I/O (1 s delay)
+GET /combined-data   — two sources fetched concurrently with asyncio.gather
+GET /scrape          — live async HTML scrape of two public URLs (requires network)
+```
+
+**Session 11 — GraphQL** (`uv run uvicorn main:app --reload`)
+```
+GET  /              — interactive HTML demo page (try queries in the browser)
+GET  /graphql       — GraphiQL explorer (browser)
+POST /graphql       — GraphQL endpoint (queries + mutations)
+```
+Token for the authenticated query: `valid-token`
+
+**Session 13 — Web Best Practices** (`uv run uvicorn main:app --reload`)
+```
+GET  /              — {"message": "Hello from FastAPI"}
+POST /items         — body: {"name": "widget", "value": 9.99}
+GET  /items/{name}  — item by name, or 404 with {"detail": "..."}
+```
+```bash
+curl http://localhost:8000/
+curl -X POST http://localhost:8000/items -H "Content-Type: application/json" -d '{"name":"widget","value":9.99}'
+curl http://localhost:8000/items/widget
+```
+
+**Session 10 — Security / Django** (`uv run python manage.py runserver`)
+```
+/           — home (comment board, login required to post)
+/register/  — create account
+/login/     — log in
+/logout/    — log out
+/admin/     — Django admin (create superuser first: uv run python manage.py createsuperuser)
+```
+
+### Interactive sessions (14 & 15)
+
+Sessions 14 and 15 enter an interactive REPL after the demo. They work in two modes:
+
+**Standalone mode** (no extra setup — always available):
+- Session 14: keyword-matching SupportBot; try "price", "refund", "contact"
+- Session 15: SmartAgent; try `weather Lisbon`, `time`, `history`
+
+**Generative mode** (real LLM via Ollama — streaming responses):
+
+Both sessions use the `ollama` Python library to stream responses from `qwen2.5:1.5b` — a lightweight 1.5 B-parameter model that runs locally.
+
+1. Install [Ollama](https://ollama.com):
+   ```bash
+   # macOS / Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+2. Pull the model (≈ 1 GB):
+   ```bash
+   ollama pull qwen2.5:1.5b
+   ```
+3. Start the Ollama server:
+   ```bash
+   ollama serve
+   ```
+4. Run the session — it detects Ollama automatically and switches to LLM mode:
+   ```bash
+   cd session_14 && uv sync && uv run python main.py
+   cd session_15 && uv sync && uv run python main.py
+   ```
+
+Session 14 is a customer support chatbot with a system prompt (persona + pricing/refund facts).
+Session 15 adds **conversation memory** and a **weather tool**: when you ask about a city's weather, the bot fetches live data from wttr.in and feeds it to the model before generating a response.
+
+### Pytest tips (sessions 08 & 09)
+
+```bash
+uv run pytest -v                    # verbose — show each test name
+uv run pytest -v -k factorial       # run only tests whose name contains "factorial"
+uv run pytest --tb=short            # shorter traceback on failure
+uv run pytest tests/test_models.py  # run a specific file (session 09)
+```
+
+---
+
 ## Session 01 — Big O Notation
 
 Big O notation is the standard way to express how an algorithm's runtime or memory usage scales with input size. Understanding it is essential for making informed decisions about which data structures and algorithms to reach for when working with large datasets.
@@ -187,7 +283,7 @@ Topics covered:
 - **Audit trails** — each user action is linked to the authenticated user account with automatic timestamps for accountability.
 
 ```bash
-cd session_10 && uv sync && python manage.py migrate && python manage.py runserver
+cd session_10 && uv sync && uv run python manage.py migrate && uv run python manage.py runserver
 ```
 
 ---
@@ -248,32 +344,32 @@ cd session_13 && uv sync && uv run uvicorn main:app --reload
 
 ## Session 14 — AI Agents (Intro)
 
-AI agents are software components that perceive input, apply decision logic, and produce a response — forming the building block of conversational interfaces and task automation systems. This session introduces the concept using a standalone implementation that mirrors the CrewAI interface.
+AI agents are software components that perceive input, apply decision logic, and produce a response. This session builds from a minimal keyword-matching bot up to a real generative chatbot powered by a local LLM.
 
 Topics covered:
 
 - **Base `Agent` class** — a minimal agent that echoes back any query, establishing the `respond(query)` interface used throughout the session.
 - **`GreetingAgent`** — extends the base class to return a fixed reply when a specific trigger phrase (`"hello"`) is detected, and falls back to the parent behaviour otherwise.
 - **`KeywordAgent`** — a configurable agent that maps keywords to canned responses using a dictionary. All keys are lowercased at construction time so matching is case-insensitive. If no keyword matches, a configurable default reply is returned.
-- **CrewAI integration** — the standalone classes use the same `Agent(name=...)` / `agent.respond(query)` interface as the real CrewAI framework, so swapping in `from crewai import Agent` is a one-line change.
+- **Generative chatbot** — after the demo, the session enters an interactive REPL. If Ollama is running with `qwen2.5:1.5b`, it connects and streams real LLM responses. Otherwise it falls back to the `KeywordAgent`. The chatbot has a system prompt giving it a customer-support persona with knowledge of pricing, refunds, and contact info.
 
 ```bash
-cd session_14 && uv run python main.py
+cd session_14 && uv sync && uv run python main.py
 ```
 
 ---
 
 ## Session 15 — Advanced AI Agents
 
-This session extends the agent model with state persistence, real-time external data, and structured query parsing — capabilities that distinguish a basic echo bot from a useful assistant.
+This session extends the agent model with state persistence, real-time external data, and a generative chatbot that uses a weather tool.
 
 Topics covered:
 
-- **`StatefulAgent`** — stores every query in a `history` list. Responding with `"history"` causes the agent to replay all previous queries, demonstrating how an agent can maintain context across a conversation turn.
-- **`WeatherAgent`** — integrates with the `wttr.in` public weather API (no API key required). A query prefixed with `"weather "` triggers an HTTP call, parses the JSON response, and returns the current temperature in Celsius for the given city.
-- **`SmartAgent`** — a structured-query dispatcher that routes requests by prefix: `"weather <city>"` → weather lookup, `"time"` → current UTC time from `datetime.utcnow()`, `"history"` → conversation replay, anything else → an explicit "I don't know" fallback.
-- Error handling in the weather fetch — network failures and API errors are caught and returned as human-readable messages rather than raising exceptions.
+- **`StatefulAgent`** — stores every query in a `history` list and can replay them on demand.
+- **`WeatherAgent`** — fetches the current temperature for a city from the `wttr.in` public API (no API key required). Errors are caught and returned as human-readable messages.
+- **`SmartAgent`** — routes structured queries by prefix: `weather <city>`, `time`, `history`, or a fallback.
+- **Generative chatbot with memory and tools** — the interactive REPL keeps the full conversation history so the model has context across turns. When the user mentions a city and weather, the bot pre-fetches live temperature data from wttr.in and injects it into the prompt before generating a response — a simple but effective tool-augmented generation pattern.
 
 ```bash
-cd session_15 && uv run python main.py
+cd session_15 && uv sync && uv run python main.py
 ```

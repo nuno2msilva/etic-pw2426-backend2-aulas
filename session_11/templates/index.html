@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Session 11 — GraphQL Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; background: #f6f8fa; color: #24292f; }
+    h1 { border-bottom: 2px solid #d0d7de; padding-bottom: 10px; margin-bottom: 6px; }
+    h2 { margin-top: 32px; margin-bottom: 10px; }
+    nav { margin-bottom: 20px; font-size: 14px; }
+    nav a { color: #0969da; text-decoration: none; margin-right: 20px; }
+    nav a:hover { text-decoration: underline; }
+    p { color: #57606a; font-size: 14px; margin: 4px 0 14px; }
+    .card { background: #fff; border: 1px solid #d0d7de; border-radius: 8px; padding: 20px 24px; margin: 14px 0; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .card > p { margin-bottom: 12px; }
+    .tag { font-size: 11px; font-family: monospace; padding: 2px 8px; border-radius: 3px; background: #ddf4ff; color: #0969da; }
+    .tag.mutation { background: #fff8c5; color: #9a6700; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 3px; background: #dafbe1; color: #1a7f37; }
+    .params { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; align-items: center; }
+    .params label { font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .params input { padding: 5px 9px; border: 1px solid #d0d7de; border-radius: 5px; font-size: 13px; width: 150px; }
+    textarea.qbox {
+      font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px;
+      width: 100%; min-height: 56px; padding: 10px; border: 1px solid #d0d7de;
+      border-radius: 5px; resize: vertical; background: #f6f8fa; color: #24292f;
+      line-height: 1.5;
+    }
+    .actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+    button.run { background: #1f883d; color: #fff; border: none; padding: 7px 20px; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    button.run:hover { background: #1a7f37; }
+    button.reset { background: transparent; border: 1px solid #d0d7de; color: #57606a; padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+    button.reset:hover { background: #f6f8fa; }
+    .result { margin-top: 14px; }
+    .result pre {
+      background: #161b22; color: #e6edf3; padding: 14px 16px; border-radius: 6px;
+      font-size: 12.5px; overflow-x: auto; white-space: pre-wrap; min-height: 36px;
+      font-family: "SFMono-Regular", Consolas, monospace; line-height: 1.5;
+    }
+    .result pre.placeholder { color: #6e7681; }
+    .result pre.has-error { border-left: 3px solid #cf222e; }
+  </style>
+</head>
+<body>
+  <h1>Session 11 — GraphQL API Demo</h1>
+  <nav>
+    <a href="/graphql">Open GraphiQL Explorer →</a>
+    <a href="https://strawberry.rocks/docs/" target="_blank">Strawberry docs</a>
+    <a href="https://graphql.org/learn/" target="_blank">GraphQL spec</a>
+  </nav>
+  <p>
+    This page sends live GraphQL requests to <code>/graphql</code>. Edit the queries or inputs and click
+    <strong>Run</strong>. Results appear below each card. For the full interactive IDE, use
+    <a href="/graphql">GraphiQL</a>.
+  </p>
+
+  <!-- ── Queries ─────────────────────────────────────────── -->
+  <h2>Queries</h2>
+
+  <div class="card">
+    <h3>user(id) <span class="tag">query</span></h3>
+    <p>Fetch a single user by ID. Returns <code>null</code> if the ID doesn't exist (try id = 99).</p>
+    <div class="params">
+      <label>id <input type="number" id="q1-id" value="1" min="1"></label>
+    </div>
+    <textarea class="qbox" id="q1-query">{ user(id: 1) { id name } }</textarea>
+    <div class="actions">
+      <button class="run" onclick="runCard('q1')">Run</button>
+      <button class="reset" onclick="resetCard('q1')">Reset</button>
+    </div>
+    <div class="result"><pre class="placeholder" id="q1-result">— click Run —</pre></div>
+  </div>
+
+  <div class="card">
+    <h3>users() <span class="tag">query</span></h3>
+    <p>List all users in the in-memory store. Run the mutation below to rename one, then re-run this query to confirm the change.</p>
+    <textarea class="qbox" id="q2-query">{ users { id name } }</textarea>
+    <div class="actions">
+      <button class="run" onclick="runCard('q2')">Run</button>
+      <button class="reset" onclick="resetCard('q2')">Reset</button>
+    </div>
+    <div class="result"><pre class="placeholder" id="q2-result">— click Run —</pre></div>
+  </div>
+
+  <div class="card">
+    <h3>userWithPosts(id, token) <span class="tag">query</span> <span class="badge">auth required</span></h3>
+    <p>Returns a user with their nested posts. The resolver validates the <code>token</code> argument — try <code>wrong-token</code> to trigger a GraphQL error.</p>
+    <div class="params">
+      <label>id <input type="number" id="q3-id" value="1" min="1"></label>
+      <label>token <input type="text" id="q3-token" value="valid-token"></label>
+    </div>
+    <textarea class="qbox" id="q3-query" style="min-height:70px">{ userWithPosts(id: 1, token: "valid-token") { id name posts { id title } } }</textarea>
+    <div class="actions">
+      <button class="run" onclick="runCard('q3')">Run</button>
+      <button class="reset" onclick="resetCard('q3')">Reset</button>
+    </div>
+    <div class="result"><pre class="placeholder" id="q3-result">— click Run —</pre></div>
+  </div>
+
+  <!-- ── Mutations ────────────────────────────────────────── -->
+  <h2>Mutations</h2>
+
+  <div class="card">
+    <h3>updateUserName(id, newName) <span class="tag mutation">mutation</span></h3>
+    <p>Renames a user in-memory. After running, execute <em>users()</em> above to see the updated list.</p>
+    <div class="params">
+      <label>id <input type="number" id="m1-id" value="2" min="1"></label>
+      <label>newName <input type="text" id="m1-name" value="Charlie"></label>
+    </div>
+    <textarea class="qbox" id="m1-query">mutation { updateUserName(id: 2, newName: "Charlie") { id name } }</textarea>
+    <div class="actions">
+      <button class="run" onclick="runCard('m1')">Run</button>
+      <button class="reset" onclick="resetCard('m1')">Reset</button>
+    </div>
+    <div class="result"><pre class="placeholder" id="m1-result">— click Run —</pre></div>
+  </div>
+
+  <script>
+    // ── Default queries (for reset) ──────────────────────────────────
+    const DEFAULTS = {
+      'q1': '{ user(id: 1) { id name } }',
+      'q2': '{ users { id name } }',
+      'q3': '{ userWithPosts(id: 1, token: "valid-token") { id name posts { id title } } }',
+      'm1': 'mutation { updateUserName(id: 2, newName: "Charlie") { id name } }',
+    };
+
+    // ── Sync input params → query textarea ──────────────────────────
+    function syncQuery(key) {
+      const ta = document.getElementById(key + '-query');
+      if (key === 'q1') {
+        const id = document.getElementById('q1-id').value;
+        ta.value = `{ user(id: ${id}) { id name } }`;
+      } else if (key === 'q3') {
+        const id    = document.getElementById('q3-id').value;
+        const token = document.getElementById('q3-token').value;
+        ta.value = `{ userWithPosts(id: ${id}, token: "${token}") { id name posts { id title } } }`;
+      } else if (key === 'm1') {
+        const id   = document.getElementById('m1-id').value;
+        const name = document.getElementById('m1-name').value;
+        ta.value = `mutation { updateUserName(id: ${id}, newName: "${name}") { id name } }`;
+      }
+    }
+
+    // Wire all param inputs to auto-update their query textarea
+    [['q1-id','q1'], ['q3-id','q3'], ['q3-token','q3'], ['m1-id','m1'], ['m1-name','m1']].forEach(([inputId, key]) => {
+      document.getElementById(inputId).addEventListener('input', () => syncQuery(key));
+    });
+
+    // ── Run a query ─────────────────────────────────────────────────
+    async function runCard(key) {
+      const query  = document.getElementById(key + '-query').value.trim();
+      const pre    = document.getElementById(key + '-result');
+      pre.textContent = 'Running…';
+      pre.className   = '';
+      try {
+        const resp = await fetch('/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const json = await resp.json();
+        pre.textContent = JSON.stringify(json, null, 2);
+        if (json.errors && json.errors.length > 0) pre.classList.add('has-error');
+      } catch (err) {
+        pre.textContent = 'Network error: ' + err.message;
+        pre.classList.add('has-error');
+      }
+    }
+
+    // ── Reset a card ────────────────────────────────────────────────
+    function resetCard(key) {
+      document.getElementById(key + '-query').value = DEFAULTS[key];
+      const pre = document.getElementById(key + '-result');
+      pre.textContent = '— click Run —';
+      pre.className   = 'placeholder';
+    }
+  </script>
+</body>
+</html>

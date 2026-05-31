@@ -1,7 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv sync *)"
+      "Bash(uv sync *)",
+      "Bash(timeout 5 uv run python main.py)",
+      "Bash(timeout 10 uv sync)",
+      "Bash(timeout 5 uv run pytest test_main.py -v)",
+      "Bash(timeout 5 uv run pytest tests/ -v)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(/workspaces/etic-pw2426-backend2-aulas/session_09/.venv/bin/pytest tests/ -v)",
+      "Bash(timeout 10 uv run --refresh pytest tests/ -v)",
+      "Bash(uv pip *)",
+      "Bash(uv python *)",
+      "Bash(uv --version)",
+      "Bash(timeout 15 uv run python main.py)",
+      "Bash(uv run *)"
     ]
   }
 }
