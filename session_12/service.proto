@@ -1,0 +1,15 @@
+syntax = "proto3";
+package service;
+
+// Problem: cube service
+service CubeService {
+    rpc GetCube (NumberRequest) returns (NumberReply) {}
+}
+
+// Challenge: server-side streaming
+service StreamService {
+    rpc CountUp (NumberRequest) returns (stream NumberReply) {}
+}
+
+message NumberRequest { int32 value = 1; }
+message NumberReply   { int32 result = 1; }
